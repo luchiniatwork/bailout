@@ -8,13 +8,15 @@
       # macOS ARM64, Linux x64, and Linux ARM64 only (see AGENTS.md).
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (s: f nixpkgs.legacyPackages.${s});
+      # Single source of truth for the version; release.yml never touches this file.
+      cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
     in
     {
       packages = forAllSystems (pkgs: rec {
         default = bailout;
         bailout = pkgs.rustPlatform.buildRustPackage {
           pname = "bailout";
-          version = "0.7.3";
+          inherit (cargoToml.package) version;
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
           # Keep the 6 MB release budget honest in nix builds too.
@@ -49,6 +51,10 @@
             # Verification scripts (AGENTS.md): smoke.py is stdlib-only,
             # record-demo.py/render-demo.py need pillow and pyte.
             (pkgs.python3.withPackages (ps: [ ps.pillow ps.pyte ]))
+
+            # api tests (uv sync && uv run pytest) and worker tests (npm ci && npm test).
+            pkgs.uv
+            pkgs.nodejs_22 # matches setup-node in ci.yml
 
             # Installer/release tooling.
             pkgs.curl
